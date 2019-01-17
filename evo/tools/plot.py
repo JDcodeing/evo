@@ -309,7 +309,7 @@ def plot_mode_to_idx(plot_mode):
     z_idx = 2 if plot_mode == PlotMode.xyz else None
     return x_idx, y_idx, z_idx
 
-
+#edit by Juan add start and end
 def traj(ax, plot_mode, traj, style='-', color='black', label="", alpha=1.0):
     """
     plot a path/trajectory based on xyz coordinates into an axis
@@ -322,8 +322,17 @@ def traj(ax, plot_mode, traj, style='-', color='black', label="", alpha=1.0):
     :param alpha: alpha value for transparency
     """
     x_idx, y_idx, z_idx = plot_mode_to_idx(plot_mode)
+    #num = traj.positions_xyz.shape[0]
+    #print("postionsxyz shape 0", num)
+    #plotstart = max(0,start)
+    #plotend = -1
+    #if end<num:
+    #    plotend = end
+    
     x = traj.positions_xyz[:, x_idx]
     y = traj.positions_xyz[:, y_idx]
+    
+
     if plot_mode == PlotMode.xyz:
         z = traj.positions_xyz[:, z_idx]
         ax.plot(x, y, z, style, color=color, label=label, alpha=alpha)
@@ -331,6 +340,7 @@ def traj(ax, plot_mode, traj, style='-', color='black', label="", alpha=1.0):
             set_aspect_equal_3d(ax)
     else:
         ax.plot(x, y, style, color=color, label=label, alpha=alpha)
+        ax.plot(x[0], y[0], 'g^')
     if label:
         ax.legend(frameon=True)
 
@@ -368,11 +378,14 @@ def traj_colormap(ax, traj, array, plot_mode, min_map, max_map, title=""):
     :param max_map: upper bound value for color mapping
     :param title: plot title
     """
+    
     pos = traj.positions_xyz
     norm = mpl.colors.Normalize(vmin=min_map, vmax=max_map, clip=True)
     mapper = cm.ScalarMappable(
         norm=norm,
         cmap=SETTINGS.plot_trajectory_cmap)  # cm.*_r is reversed cmap
+    x_idx, y_idx, z_idx = plot_mode_to_idx(plot_mode)
+
     mapper.set_array(array)
     colors = [mapper.to_rgba(a) for a in array]
     line_collection = colored_line_collection(pos, colors, plot_mode)
@@ -410,6 +423,7 @@ def traj_xyz(axarr, traj, style='-', color='black', label="", alpha=1.0,
     :param start_timestamp: optional start time of the reference
                             (for x-axis alignment)
     """
+    
     if len(axarr) != 3:
         raise PlotException("expected an axis array with 3 subplots - got " +
                             str(len(axarr)))

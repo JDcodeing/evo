@@ -140,7 +140,31 @@ def read_kitti_poses_file(file_path):
         logger.debug("Loaded {} poses from: {}".format(len(poses), file_path))
     return PosePath3D(poses_se3=poses)
 
-
+def read_robotcar_poses_file(file_path):
+    """
+    parses pose file in KITTI format (first 3 rows of SE(3) matrix per line)
+    :param file_path: the trajectory file path (or file handle)
+    :return: trajectory.PosePath3D
+    """
+    raw_mat = csv_read_matrix(file_path, delim=" ", comment_str="#")
+    error_msg = ("KITTI pose files must have 13 entries per row "
+                 "and no trailing delimiter at the end of the rows (space)")
+    if len(raw_mat) > 0 and len(raw_mat[0]) != 13:
+        raise FileInterfaceException(error_msg)
+    try:
+        mat = np.array(raw_mat).astype(float)
+    except ValueError:
+        raise FileInterfaceException(error_msg)
+    # yapf: disable
+    stamps = np.divide(mat[:, 0], 1e6) 
+    poses = [np.array([[r[1], r[2], r[3], r[4]],
+                       [r[5], r[6], r[7], r[8]],
+                       [r[9], r[10], r[11], r[12]],
+                       [0, 0, 0, 1]]) for r in mat]
+    # yapf: enable
+    if not hasattr(file_path, 'read'):  # if not file handle
+        logger.debug("Loaded {} poses from: {}".format(len(poses), file_path))
+    return PoseTrajectory3D(poses_se3=poses,timestamps=stamps)
 def write_kitti_poses_file(file_path, traj, confirm_overwrite=False):
     """
     :param file_path: desired text file for trajectory (string or handle)

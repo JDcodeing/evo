@@ -222,6 +222,24 @@ class PosePath3D(object):
     def get_statistics(self):
         return {}  # no idea yet
 
+    def cut(self, cutstart, cutend):
+        num = self.num_poses
+        if cutstart >= num:
+            print("cut start > len!", num)
+            cutstart = 0
+        if cutend != -1 and (cutend > num or cutend < cutstart):
+            print("cut end error!", cutend)
+            cutend = -1
+        cutstart = int(cutstart)
+        cutend = int(cutend)
+        if hasattr(self, "_positions_xyz"):
+            self.positions_xyz = self.positions_xyz._replace(self.positions_xyz[cutstart:cutend])
+        if hasattr(self, "_orientations_quat_wxyz"):
+            self.orientations_quat_wxyz = self.orientations_quat_wxyz._replace(self.orientations_quat_wxyz[cutstart:cutend])
+        if hasattr(self, "_poses_se3"):
+            self.poses_se3 = self.poses_se3._replace(self.poses_se3[cutstart:cutend])
+
+
 
 class PoseTrajectory3D(PosePath3D, object):
     """
@@ -285,6 +303,8 @@ class PoseTrajectory3D(PosePath3D, object):
         infos["duration (s)"] = self.timestamps[-1] - self.timestamps[0]
         infos["t_start (s)"] = self.timestamps[0]
         infos["t_end (s)"] = self.timestamps[-1]
+        stats = self.get_statistics()
+        infos.update(stats)
         return infos
 
     def get_statistics(self):
@@ -309,6 +329,12 @@ class PoseTrajectory3D(PosePath3D, object):
             "v_avg (km/h)": vmean * 3.6
         })
         return stats
+    def cut(self, cutstart, cutend):
+        super(PoseTrajectory3D, self).cut(cutstart, cutend)
+        cutstart = int(cutstart)
+        cutend = int(cutend)
+        if self.timestamps is not None:
+            self.timestamps = self.timestamps._replace(self.timestamps[cutstart:cutend])
 
 
 class Trajectory(PoseTrajectory3D):

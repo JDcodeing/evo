@@ -77,6 +77,14 @@ def parser():
     algo_opts.add_argument(
         "--merge", help="merge the trajectories in a single trajectory",
         action="store_true")
+    algo_opts.add_argument(
+        "--plotstart",
+        help="plot start index", default=0,
+        type=float)
+    algo_opts.add_argument(
+        "--plotend",
+        help="plot end index", default=-1,
+        type=float)
     output_opts.add_argument("-p", "--plot", help="show plot window",
                              action="store_true")
     output_opts.add_argument(
@@ -119,6 +127,13 @@ def parser():
         description="%s for KITTI pose files - %s" % (basic_desc, lic),
         parents=[shared_parser])
     kitti_parser.add_argument("pose_files", help="one or multiple pose files",
+                              nargs='+')
+
+    robotcar_parser = sub_parsers.add_parser(
+        "robotcar",
+        description="%s for robotcar_parser trajectory files - %s" % (basic_desc, lic),
+        parents=[shared_parser])
+    robotcar_parser.add_argument("traj_files", help="one or multiple pose files",
                               nargs='+')
 
     tum_parser = sub_parsers.add_parser(
@@ -183,8 +198,14 @@ def load_trajectories(args):
                 trajectories[
                     csv_file] = file_interface.read_euroc_csv_trajectory(
                         csv_file)
+    elif args.subcommand == "robotcar":
+        for traj_file in args.traj_files:
+            if traj_file == args.ref:
+                continue
+            trajectories[traj_file] = file_interface.read_robotcar_poses_file(
+                traj_file)
         if args.ref:
-            ref_traj = file_interface.read_euroc_csv_trajectory(args.ref)
+            ref_traj = file_interface.read_robotcar_poses_file(args.ref)
     elif args.subcommand == "bag":
         if not (args.topics or args.all_topics):
             die("No topics used - specify topics or set --all_topics.")
@@ -348,10 +369,16 @@ def run(args):
         plot_collection = plot.PlotCollection("evo_traj - trajectory plot")
         fig_xyz, axarr_xyz = plt.subplots(3, sharex="col",
                                           figsize=tuple(SETTINGS.plot_figsize))
-        fig_rpy, axarr_rpy = plt.subplots(3, sharex="col",
-                                          figsize=tuple(SETTINGS.plot_figsize))
+        # fig_rpy, axarr_rpy = plt.subplots(3, sharex="col",
+        #                                   figsize=tuple(SETTINGS.plot_figsize))
         fig_traj = plt.figure(figsize=tuple(SETTINGS.plot_figsize))
         ax_traj = plot.prepare_axis(fig_traj, plot_mode)
+        pltstart = 0
+        pltend = traj.num_poses
+        if args.plotstart:
+            pltstart = args.plotstart
+        if args.plotend!=-1:
+            pltend = args.plotend
 
         if args.ref:
             short_traj_name = os.path.splitext(os.path.basename(args.ref))[0]
@@ -366,17 +393,33 @@ def run(args):
                 axarr_xyz, ref_traj, style=SETTINGS.plot_reference_linestyle,
                 color=SETTINGS.plot_reference_color, label=short_traj_name,
                 alpha=SETTINGS.plot_reference_alpha)
-            plot.traj_rpy(
-                axarr_rpy, ref_traj, style=SETTINGS.plot_reference_linestyle,
-                color=SETTINGS.plot_reference_color, label=short_traj_name,
-                alpha=SETTINGS.plot_reference_alpha)
+            # plot.traj_rpy(
+            #     axarr_rpy, ref_traj, style=SETTINGS.plot_reference_linestyle,
+            #     color=SETTINGS.plot_reference_color, label=short_traj_name,
+            #     alpha=SETTINGS.plot_reference_alpha)
 
         cmap_colors = None
         if SETTINGS.plot_multi_cmap.lower() != "none":
             cmap = getattr(cm, SETTINGS.plot_multi_cmap)
             cmap_colors = iter(cmap(np.linspace(0, 1, len(trajectories))))
 
+        fig_3 = plt.figure(figsize=tuple(SETTINGS.plot_figsize))
+        #plot_mode = plot.PlotMode.xz
+        ax = plot.prepare_axis(fig_3, plot_mode)
+        
+        fig_3.axes.append(ax)
         for name, traj in trajectories.items():
+            num = traj.positions_xyz.shape[0]
+            if pltstart >= num:
+                print(name, "plotstart > len!", num)
+                pltstart = 0
+            if pltend!=-1 and (pltend > num or pltend < pltstart):
+                print(name, "plotend > len!", num)
+                pltend = traj.num_poses
+    
+            pltstart = int(pltstart)
+            pltend = int(pltend)
+            traj.reduce_to_ids(range(pltstart,pltend))
             if cmap_colors is None:
                 color = next(ax_traj._get_lines.prop_cycler)['color']
             else:
@@ -391,12 +434,24 @@ def run(args):
                 start_time = None
             plot.traj_xyz(axarr_xyz, traj, '-', color, short_traj_name,
                           start_timestamp=start_time)
-            plot.traj_rpy(axarr_rpy, traj, '-', color, short_traj_name,
-                          start_timestamp=start_time)
+            # plot.traj_rpy(axarr_rpy, traj, '-', color, short_traj_name,
+            #               start_timestamp=start_time)
+            ax.set_xlim(ax_traj.get_xlim())
+            ax.set_ylim(ax_traj.get_ylim())
 
+            speeds = [trajectory.calc_speed(traj.positions_xyz[i], traj.positions_xyz[i + 1],
+                               traj.timestamps[i], traj.timestamps[i + 1])
+                    for i in range(len(traj.positions_xyz)-1)]
+            speeds.append(0)
+            #plot.traj(ax, plot_mode, traj, '--', 'gray', 'reference')
+            plot.traj_colormap(ax, traj, speeds, plot_mode, min_map=min(speeds),
+                           max_map=max(speeds), title="speed mapped onto trajectory")
+            
+        
         plot_collection.add_figure("trajectories", fig_traj)
         plot_collection.add_figure("xyz_view", fig_xyz)
-        plot_collection.add_figure("rpy_view", fig_rpy)
+        #plot_collection.add_figure("rpy_view", fig_rpy)
+        plot_collection.add_figure("traj (speed)", fig_3)
         if args.plot:
             plot_collection.show()
         if args.save_plot:
