@@ -8,9 +8,9 @@ from evo.tools import file_interface
 
 print("loading trajectories")
 traj_ref = file_interface.read_tum_trajectory_file(
-    "../../test/data/fr2_desk_groundtruth.txt")
+    "../../test/data/Kitti_000_gt.txt")
 traj_est = file_interface.read_tum_trajectory_file(
-    "../../test/data/fr2_desk_ORB.txt")
+    "../../test/data/Kitti_000_gt.txt")
 
 print("registering and aligning trajectories")
 traj_ref, traj_est = sync.associate_trajectories(traj_ref, traj_est)
